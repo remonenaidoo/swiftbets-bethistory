@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SwiftBets.History.Api/SwiftBets.History.Api.csproj" />
+    <Project Path="src/SwiftBets.History.Application/SwiftBets.History.Application.csproj" />
+    <Project Path="src/SwiftBets.History.Infrastructure/SwiftBets.History.Infrastructure.csproj" />
+    <Project Path="src/SwiftBets.History.Migrator/SwiftBets.History.Migrator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SwiftBets.History.Infrastructure.Tests/SwiftBets.History.Infrastructure.Tests.csproj" />
+    <Project Path="tests/SwiftBets.History.IntegrationTests/SwiftBets.History.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
