@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="SwiftBets.BuildingBlocks.Messaging" />
+    <PackageReference Include="SwiftBets.BuildingBlocks.Persistence" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../SwiftBets.History.Application/SwiftBets.History.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Sql/*.sql" />
+  </ItemGroup>
+</Project>
