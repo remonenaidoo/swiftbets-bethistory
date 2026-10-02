@@ -57,10 +57,28 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
         }, cancellationToken: cancellationToken));
     }
 
-    public async Task<IReadOnlyList<CouponHistoryRow>> ListAsync(Guid punterId, int limit, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CouponHistoryRow>> ListAsync(Guid punterId, int limit, CancellationToken cancellationToken) =>
+        ListAsync(punterId, limit, false, cancellationToken);
+
+    public Task<IReadOnlyList<CouponHistoryRow>> ListOpenAsync(Guid punterId, int limit, CancellationToken cancellationToken) =>
+        ListAsync(punterId, limit, true, cancellationToken);
+
+    public async Task<IReadOnlyList<IntegrityFinding>> FindIntegrityProblemsAsync(int staleHours, int graceMinutes, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        return [.. await connection.QueryAsync<CouponHistoryRow>(new CommandDefinition(Sql.Get("History.List"), new { PunterId = punterId, Limit = Math.Clamp(limit, 1, 100) }, cancellationToken: cancellationToken))];
+        return [.. await connection.QueryAsync<IntegrityFinding>(new CommandDefinition(Sql.Get("History.Integrity"), new
+        {
+            StaleHours = Math.Max(staleHours, 0), GraceMinutes = Math.Max(graceMinutes, 0),
+        }, cancellationToken: cancellationToken))];
+    }
+
+    private async Task<IReadOnlyList<CouponHistoryRow>> ListAsync(Guid punterId, int limit, bool openOnly, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        return [.. await connection.QueryAsync<CouponHistoryRow>(new CommandDefinition(Sql.Get("History.List"), new
+        {
+            PunterId = punterId, Limit = Math.Clamp(limit, 1, 100), OpenOnly = openOnly,
+        }, cancellationToken: cancellationToken))];
     }
 
     public async Task<CouponHistoryRow?> GetAsync(Guid couponId, CancellationToken cancellationToken)

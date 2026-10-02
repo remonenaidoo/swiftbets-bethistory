@@ -8,9 +8,10 @@ The bet history read model for SwiftBets: every coupon a punter placed, how it s
 
 | Endpoint | Who |
 |---|---|
-| `GET /me/coupons?limit=` | the punter, own coupons, newest first |
+| `GET /me/coupons?limit=&open=` | the punter, own coupons, newest first; `open=true` for unsettled only |
 | `GET /me/coupons/{couponId}` | the punter, own coupon only |
-| `GET /admin/history/punters/{punterId}/coupons` | operators |
+| `GET /admin/history/punters/{punterId}/coupons?open=` | operators |
+| `GET /admin/history/integrity?staleHours=72&graceMinutes=30` | operators: coupons open too long, settlements whose placement never arrived |
 | `GET /admin/history/coupons/{couponId}` | operators |
 
 | Project | Purpose |
