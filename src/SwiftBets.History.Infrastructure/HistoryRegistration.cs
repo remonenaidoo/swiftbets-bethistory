@@ -29,9 +29,8 @@ public static class HistoryRegistration
         if (configuration.GetValue("History:RunProjector", true))
         {
             services.AddKafkaMessaging(configuration);
-            services.AddKafkaConsumer<CouponPlacedV1, PlacedProjector>(Topics.CouponPlaced, "swiftbets.history.placed");
             services.AddKafkaConsumer<CouponPlacedV2, PlacedV2Projector>(Topics.CouponPlacedV2, "swiftbets.history.placed-v2");
-            services.AddKafkaConsumer<CouponSettledV1, SettledProjector>(Topics.CouponSettled, "swiftbets.history.settled");
+            services.AddKafkaConsumer<CouponSettledV2, SettledV2Projector>(Topics.CouponSettledV2, "swiftbets.history.settled-v2");
             services.AddKafkaConsumer<PayoutCompletedV1, PaidProjector>(Topics.PayoutCompleted, "swiftbets.history.paid");
         }
 

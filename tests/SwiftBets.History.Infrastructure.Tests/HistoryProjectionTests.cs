@@ -38,7 +38,20 @@ public sealed class HistoryProjectionTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task A_banker_trixie_is_projected_as_a_system_coupon_and_its_v1_twin_changes_nothing()
+    public async Task A_cashed_out_settlement_reads_as_cashedOut_with_its_agreed_amount()
+    {
+        var store = await StoreAsync();
+        var (placed, settled) = Coupon();
+        await store.ProjectPlacedAsync(placed, CancellationToken.None);
+
+        await store.ProjectSettledAsync(settled with { Outcome = CouponOutcome.CashedOut, TargetPayout = new Money(1_500, "ZAR") }, CancellationToken.None);
+
+        var row = (await store.ListAsync(placed.PunterId, 10, CancellationToken.None)).ShouldHaveSingleItem();
+        (row.Status, row.Payout, row.SettlementVersion).ShouldBe(("cashedOut", 1_500L, 1));
+    }
+
+    [Fact]
+    public async Task A_banker_trixie_is_projected_as_a_system_coupon()
     {
         var store = await StoreAsync();
         var (placed, _) = Coupon();
@@ -49,18 +62,19 @@ public sealed class HistoryProjectionTests(PostgresFixture postgres)
             [new CouponBetV2(Guid.NewGuid(), "trixie", [2, 3], 4, zar(100), zar(400), zar(9_000))], DateTimeOffset.UtcNow);
 
         await store.ProjectPlacedAsync(v2, CancellationToken.None);
-        await store.ProjectPlacedAsync(placed, CancellationToken.None);
 
         var row = (await store.ListAsync(placed.PunterId, 10, CancellationToken.None)).ShouldHaveSingleItem();
         (row.BetType, row.Stake, row.PotentialPayout, row.TotalOdds).ShouldBe(("system", 400L, 9_000L, 22.5m));
     }
 
-    private static (CouponPlacedV1, CouponSettledV1) Coupon()
+    private static (CouponPlacedV2, CouponSettledV2) Coupon()
     {
-        var (couponId, punterId) = (Guid.NewGuid(), Guid.NewGuid());
+        var (couponId, punterId, betId) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var zar = (long m) => new Money(m, "ZAR");
         return (
-            new CouponPlacedV1(couponId, punterId, BetType.Single, new Money(1_000, "ZAR"), 2m, new Money(2_000, "ZAR"), [new CouponLegV1(Guid.NewGuid(), "f", "f-1x2", "home", 2m, 1)], DateTimeOffset.UtcNow),
-            new CouponSettledV1(couponId, punterId, 1, CouponOutcome.Won, new Money(1_000, "ZAR"), 2m, new Money(2_000, "ZAR"), DateTimeOffset.UtcNow));
+            new CouponPlacedV2(couponId, punterId, zar(1_000), zar(2_000), [new CouponLegV2(Guid.NewGuid(), "f", "f-1x2", "home", 2m, 1, false)],
+                [new CouponBetV2(betId, "single", [1], 1, zar(1_000), zar(1_000), zar(2_000))], DateTimeOffset.UtcNow),
+            new CouponSettledV2(couponId, punterId, 1, CouponOutcome.Won, zar(1_000), zar(2_000), [new BetSettlementV2(betId, CouponOutcome.Won, 1, 0, 0, zar(2_000))], DateTimeOffset.UtcNow));
     }
 
     private async Task<PostgresHistoryStore> StoreAsync()
