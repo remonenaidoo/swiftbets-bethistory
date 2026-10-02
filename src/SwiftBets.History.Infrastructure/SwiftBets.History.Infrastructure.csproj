@@ -4,6 +4,9 @@
     <PackageReference Include="SwiftBets.BuildingBlocks.Persistence" />
     <PackageReference Include="Dapper" />
     <PackageReference Include="Npgsql" />
+    <PackageReference Include="SwiftBets.BuildingBlocks.Web" />
+    <PackageReference Include="SwiftBets.BuildingBlocks.Resilience" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../SwiftBets.History.Application/SwiftBets.History.Application.csproj" />

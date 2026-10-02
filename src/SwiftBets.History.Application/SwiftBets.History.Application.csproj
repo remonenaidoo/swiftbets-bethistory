@@ -2,5 +2,6 @@
   <ItemGroup>
     <PackageReference Include="SwiftBets.Contracts" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 </Project>

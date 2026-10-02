@@ -25,6 +25,10 @@ public static class HistoryEndpoints
             Results.Json((await List(history, punterId, limit ?? 50, open, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options));
         admin.MapGet("/integrity", async (IHistoryStore history, int? staleHours, int? graceMinutes, CancellationToken cancellationToken) =>
             Results.Json(await history.FindIntegrityProblemsAsync(staleHours ?? 72, graceMinutes ?? 30, cancellationToken), ContractJson.Options));
+        admin.MapGet("/integrity/cross-store", async (HttpContext context, IHistoryStore history, CancellationToken cancellationToken) =>
+            await history.GetLatestIntegrityRunAsync(cancellationToken) is { } run
+                ? Results.Json(run, ContractJson.Options)
+                : Error.NotFound("no_integrity_run", "No cross-store integrity run has completed yet.").ToHttpResult(context));
         admin.MapGet("/coupons/{couponId:guid}", async (HttpContext context, Guid couponId, IHistoryStore history, CancellationToken cancellationToken) =>
             await history.GetAsync(couponId, cancellationToken) is { } row
                 ? Results.Json(HistoryCoupon.From(row), ContractJson.Options)
