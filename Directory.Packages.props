@@ -17,7 +17,7 @@
     <PackageVersion Include="SwiftBets.BuildingBlocks.Resilience" Version="0.7.0" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="SwiftBets.Contracts" Version="1.2.0" />
+    <PackageVersion Include="SwiftBets.Contracts" Version="2.0.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
 </Project>
