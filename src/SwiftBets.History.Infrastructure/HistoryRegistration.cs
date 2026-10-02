@@ -35,9 +35,10 @@ public static class HistoryRegistration
         }
 
         services.AddValidatedOptions<IntegrityOptions>(configuration, IntegrityOptions.SectionName);
-        services.AddScoped<RunIntegrityCheckHandler>();
         if (configuration.GetValue("Integrity:Enabled", false))
         {
+            // The handler needs the owners' digests, so it exists only where they are configured.
+            services.AddScoped<RunIntegrityCheckHandler>();
             services.AddValidatedOptions<IntegrityClients>(configuration, IntegrityClients.SectionName);
             services.AddClientCredentials(configuration);
             foreach (var (name, address) in new (string, Func<IntegrityClients, string>)[]
