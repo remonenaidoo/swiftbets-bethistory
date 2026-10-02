@@ -10,8 +10,8 @@ public static class HistoryEndpoints
 {
     public static IEndpointRouteBuilder MapHistoryEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/me/coupons", async (HttpContext context, IHistoryStore history, int? limit, CancellationToken cancellationToken) =>
-            Results.Json((await history.ListAsync(PunterId(context), limit ?? 25, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options))
+        endpoints.MapGet("/me/coupons", async (HttpContext context, IHistoryStore history, int? limit, bool? open, CancellationToken cancellationToken) =>
+            Results.Json((await List(history, PunterId(context), limit ?? 25, open, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options))
         .RequireAuthorization(Roles.Punter);
 
         endpoints.MapGet("/me/coupons/{couponId:guid}", async (HttpContext context, Guid couponId, IHistoryStore history, CancellationToken cancellationToken) =>
@@ -21,8 +21,10 @@ public static class HistoryEndpoints
         .RequireAuthorization(Roles.Punter);
 
         var admin = endpoints.MapGroup("/admin/history").RequireAuthorization(Roles.Operator);
-        admin.MapGet("/punters/{punterId:guid}/coupons", async (Guid punterId, IHistoryStore history, int? limit, CancellationToken cancellationToken) =>
-            Results.Json((await history.ListAsync(punterId, limit ?? 50, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options));
+        admin.MapGet("/punters/{punterId:guid}/coupons", async (Guid punterId, IHistoryStore history, int? limit, bool? open, CancellationToken cancellationToken) =>
+            Results.Json((await List(history, punterId, limit ?? 50, open, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options));
+        admin.MapGet("/integrity", async (IHistoryStore history, int? staleHours, int? graceMinutes, CancellationToken cancellationToken) =>
+            Results.Json(await history.FindIntegrityProblemsAsync(staleHours ?? 72, graceMinutes ?? 30, cancellationToken), ContractJson.Options));
         admin.MapGet("/coupons/{couponId:guid}", async (HttpContext context, Guid couponId, IHistoryStore history, CancellationToken cancellationToken) =>
             await history.GetAsync(couponId, cancellationToken) is { } row
                 ? Results.Json(HistoryCoupon.From(row), ContractJson.Options)
@@ -30,6 +32,9 @@ public static class HistoryEndpoints
 
         return endpoints;
     }
+
+    private static Task<IReadOnlyList<CouponHistoryRow>> List(IHistoryStore history, Guid punterId, int limit, bool? open, CancellationToken cancellationToken) =>
+        open == true ? history.ListOpenAsync(punterId, limit, cancellationToken) : history.ListAsync(punterId, limit, cancellationToken);
 
     private static Guid PunterId(HttpContext context) =>
         Guid.TryParse(context.User.FindFirst("sub")?.Value, out var id) ? id : throw new BadHttpRequestException("Token subject is not a user id.", 401);

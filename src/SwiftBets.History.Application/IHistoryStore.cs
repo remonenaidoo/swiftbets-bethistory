@@ -21,5 +21,11 @@ public interface IHistoryStore
 
     Task<IReadOnlyList<CouponHistoryRow>> ListAsync(Guid punterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Only coupons not yet settled, newest first.</summary>
+    Task<IReadOnlyList<CouponHistoryRow>> ListOpenAsync(Guid punterId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Coupons open longer than <paramref name="staleHours"/>, and settlements whose placement never arrived after <paramref name="graceMinutes"/>.</summary>
+    Task<IReadOnlyList<IntegrityFinding>> FindIntegrityProblemsAsync(int staleHours, int graceMinutes, CancellationToken cancellationToken);
+
     Task<CouponHistoryRow?> GetAsync(Guid couponId, CancellationToken cancellationToken);
 }

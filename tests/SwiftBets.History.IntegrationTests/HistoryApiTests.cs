@@ -18,6 +18,7 @@ using Npgsql;
 using SwiftBets.BuildingBlocks.Testing;
 using SwiftBets.Contracts.Money;
 using SwiftBets.Contracts.Placement;
+using SwiftBets.Contracts.Settlement;
 using SwiftBets.History.Application;
 
 [assembly: AssemblyFixture(typeof(PostgresFixture))]
@@ -47,6 +48,31 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
         lookedUp.GetProperty("punterId").GetGuid().ShouldBe(theirs);
         var byPunter = await operatorClient.GetFromJsonAsync<JsonElement>($"/admin/history/punters/{theirs}/coupons", TestContext.Current.CancellationToken);
         byPunter.GetArrayLength().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Open_coupons_filter_and_the_integrity_report_flags_stale_and_orphaned_rows()
+    {
+        await using var host = await HistoryHost.StartAsync(postgres);
+        var punter = Guid.NewGuid();
+        var store = host.Services.GetRequiredService<IHistoryStore>();
+        var open = await PlaceAsync(store, punter);
+        var settled = await PlaceAsync(store, punter);
+        await store.ProjectSettledAsync(new CouponSettledV1(settled, punter, 1, CouponOutcome.Won, new Money(1_000, "ZAR"), 2m, new Money(2_000, "ZAR"), DateTimeOffset.UtcNow), CancellationToken.None);
+        var orphan = Guid.NewGuid();
+        await store.ProjectSettledAsync(new CouponSettledV1(orphan, punter, 1, CouponOutcome.Lost, new Money(1_000, "ZAR"), 2m, new Money(0, "ZAR"), DateTimeOffset.UtcNow), CancellationToken.None);
+
+        using var punterClient = host.Client(punter, "Punter");
+        var mine = await punterClient.GetFromJsonAsync<JsonElement>("/me/coupons?open=true", TestContext.Current.CancellationToken);
+        mine.EnumerateArray().Select(c => c.GetProperty("couponId").GetGuid()).ShouldBe([open]);
+
+        using var operatorClient = host.Client(Guid.NewGuid(), "Operator");
+        var report = await operatorClient.GetFromJsonAsync<JsonElement>("/admin/history/integrity?staleHours=0&graceMinutes=0", TestContext.Current.CancellationToken);
+        var findings = report.EnumerateArray().ToDictionary(f => f.GetProperty("couponId").GetGuid(), f => f.GetProperty("problem").GetString());
+        findings.ShouldContainKeyAndValue(open, "staleOpen");
+        findings.ShouldContainKeyAndValue(orphan, "settledWithoutPlacement");
+        findings.ShouldNotContainKey(settled);
+        (await punterClient.GetAsync(new Uri("/admin/history/integrity", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     private static async Task<Guid> PlaceAsync(IHistoryStore store, Guid punterId)
