@@ -28,4 +28,10 @@ public interface IHistoryStore
     Task<IReadOnlyList<IntegrityFinding>> FindIntegrityProblemsAsync(int staleHours, int graceMinutes, CancellationToken cancellationToken);
 
     Task<CouponHistoryRow?> GetAsync(Guid couponId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CouponHistoryRow>> GetManyAsync(IReadOnlyList<Guid> couponIds, CancellationToken cancellationToken);
+
+    Task RecordIntegrityRunAsync(Integrity.IntegrityRun run, CancellationToken cancellationToken);
+
+    Task<Integrity.IntegrityRun?> GetLatestIntegrityRunAsync(CancellationToken cancellationToken);
 }
