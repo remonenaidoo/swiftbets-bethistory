@@ -20,6 +20,15 @@ public static class HistoryEndpoints
                 : Error.NotFound("coupon_not_found", "No such coupon.").ToHttpResult(context))
         .RequireAuthorization(Roles.Punter);
 
+        // Public for the site's ticker: masked accounts only, and cacheable for a few seconds.
+        endpoints.MapGet("/recent-wins", async (HttpContext context, IHistoryStore history, int? limit, CancellationToken cancellationToken) =>
+        {
+            var wins = await history.RecentWinsAsync(Math.Clamp(limit ?? 12, 1, 30), cancellationToken);
+            context.Response.Headers.CacheControl = "public, max-age=5";
+            return Results.Json(wins.Select(w => new { w.CouponId, w.Account, w.BetType, Payout = new { MinorUnits = w.PaidMinorUnits, w.Currency }, w.PaidAt }), ContractJson.Options);
+        })
+        .AllowAnonymous();
+
         var admin = endpoints.MapGroup("/admin/history").RequireAuthorization(Roles.Operator);
         admin.MapGet("/punters/{punterId:guid}/coupons", async (Guid punterId, IHistoryStore history, int? limit, bool? open, CancellationToken cancellationToken) =>
             Results.Json((await List(history, punterId, limit ?? 50, open, cancellationToken)).Select(HistoryCoupon.From), ContractJson.Options));
