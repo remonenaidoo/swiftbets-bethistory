@@ -70,6 +70,14 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
         return [.. await connection.QueryAsync<CouponHistoryRow>(new CommandDefinition(Sql.Get("History.GetMany"), new { CouponIds = couponIds.ToArray() }, cancellationToken: cancellationToken))];
     }
 
+    public async Task<IReadOnlyList<RecentWin>> RecentWinsAsync(int limit, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<(Guid CouponId, Guid PunterId, string? BetType, long PaidToDate, string Currency, DateTime PaidAt)>(
+            new CommandDefinition(Sql.Get("History.RecentWins"), new { Limit = Math.Clamp(limit, 1, 30) }, cancellationToken: cancellationToken));
+        return [.. rows.Select(r => new RecentWin(r.CouponId, AccountMask.For(r.PunterId), r.BetType, r.PaidToDate, r.Currency.Trim(), r.PaidAt))];
+    }
+
     public async Task RecordIntegrityRunAsync(IntegrityRun run, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

@@ -28,6 +28,18 @@ namespace SwiftBets.History.IntegrationTests;
 public sealed class HistoryApiTests(PostgresFixture postgres)
 {
     [Fact]
+    public async Task Anyone_can_read_the_recent_wins_and_the_answer_is_briefly_cacheable()
+    {
+        await using var host = await HistoryHost.StartAsync(postgres);
+        using var anonymous = host.CreateClient();
+
+        using var response = await anonymous.GetAsync(new Uri("/recent-wins", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response.Headers.CacheControl!.ToString().ShouldBe("public, max-age=5");
+    }
+
+    [Fact]
     public async Task A_punter_sees_only_their_own_coupons_and_an_operator_can_look_any_up()
     {
         await using var host = await HistoryHost.StartAsync(postgres);

@@ -29,6 +29,9 @@ public interface IHistoryStore
 
     Task<IReadOnlyList<CouponHistoryRow>> GetManyAsync(IReadOnlyList<Guid> couponIds, CancellationToken cancellationToken);
 
+    /// <summary>The most recent paid wins and cash-outs, newest first.</summary>
+    Task<IReadOnlyList<RecentWin>> RecentWinsAsync(int limit, CancellationToken cancellationToken);
+
     Task RecordIntegrityRunAsync(Integrity.IntegrityRun run, CancellationToken cancellationToken);
 
     Task<Integrity.IntegrityRun?> GetLatestIntegrityRunAsync(CancellationToken cancellationToken);

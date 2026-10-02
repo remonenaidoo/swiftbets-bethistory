@@ -1,8 +1,10 @@
 using Npgsql;
 using SwiftBets.BuildingBlocks.Testing;
 using SwiftBets.Contracts.Money;
+using SwiftBets.Contracts.Payout;
 using SwiftBets.Contracts.Placement;
 using SwiftBets.Contracts.Settlement;
+using SwiftBets.History.Application;
 
 [assembly: AssemblyFixture(typeof(PostgresFixture))]
 
@@ -65,6 +67,40 @@ public sealed class HistoryProjectionTests(PostgresFixture postgres)
 
         var row = (await store.ListAsync(placed.PunterId, 10, CancellationToken.None)).ShouldHaveSingleItem();
         (row.BetType, row.Stake, row.PotentialPayout, row.TotalOdds).ShouldBe(("system", 400L, 9_000L, 22.5m));
+    }
+
+    [Fact]
+    public async Task A_paid_win_reaches_the_ticker_with_a_masked_account()
+    {
+        var store = await StoreAsync();
+        var (placed, settled) = Coupon();
+        await store.ProjectPlacedAsync(placed, CancellationToken.None);
+        await store.ProjectSettledAsync(settled, CancellationToken.None);
+        await store.ProjectPaidAsync(new PayoutCompletedV1(placed.CouponId, placed.PunterId, 1, new Money(2_000, "ZAR"), new Money(2_000, "ZAR"), DateTimeOffset.UtcNow), CancellationToken.None);
+
+        var win = (await store.RecentWinsAsync(12, CancellationToken.None)).ShouldHaveSingleItem();
+
+        (win.CouponId, win.Account, win.PaidMinorUnits, win.Currency).ShouldBe((placed.CouponId, "****" + placed.PunterId.ToString("N")[^4..], 2_000L, "ZAR"));
+    }
+
+    [Fact]
+    public async Task A_lost_coupon_and_an_unpaid_win_stay_off_the_ticker()
+    {
+        var store = await StoreAsync();
+        var (lostPlaced, lostSettled) = Coupon();
+        var (unpaidPlaced, unpaidSettled) = Coupon();
+        await store.ProjectPlacedAsync(lostPlaced, CancellationToken.None);
+        await store.ProjectSettledAsync(lostSettled with { Outcome = CouponOutcome.Lost, TargetPayout = new Money(0, "ZAR") }, CancellationToken.None);
+        await store.ProjectPlacedAsync(unpaidPlaced, CancellationToken.None);
+        await store.ProjectSettledAsync(unpaidSettled, CancellationToken.None);
+
+        (await store.RecentWinsAsync(12, CancellationToken.None)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void An_account_mask_shows_only_the_last_four_characters()
+    {
+        AccountMask.For(Guid.Parse("0199aaaa-0000-7000-8000-00000000beef")).ShouldBe("****beef");
     }
 
     private static (CouponPlacedV2, CouponSettledV2) Coupon()
