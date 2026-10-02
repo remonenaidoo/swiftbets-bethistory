@@ -58,9 +58,9 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
         var store = host.Services.GetRequiredService<IHistoryStore>();
         var open = await PlaceAsync(store, punter);
         var settled = await PlaceAsync(store, punter);
-        await store.ProjectSettledAsync(new CouponSettledV1(settled, punter, 1, CouponOutcome.Won, new Money(1_000, "ZAR"), 2m, new Money(2_000, "ZAR"), DateTimeOffset.UtcNow), CancellationToken.None);
+        await store.ProjectSettledAsync(Settled(settled, punter, CouponOutcome.Won, 2_000), CancellationToken.None);
         var orphan = Guid.NewGuid();
-        await store.ProjectSettledAsync(new CouponSettledV1(orphan, punter, 1, CouponOutcome.Lost, new Money(1_000, "ZAR"), 2m, new Money(0, "ZAR"), DateTimeOffset.UtcNow), CancellationToken.None);
+        await store.ProjectSettledAsync(Settled(orphan, punter, CouponOutcome.Lost, 0), CancellationToken.None);
 
         using var punterClient = host.Client(punter, "Punter");
         var mine = await punterClient.GetFromJsonAsync<JsonElement>("/me/coupons?open=true", TestContext.Current.CancellationToken);
@@ -78,10 +78,14 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
     private static async Task<Guid> PlaceAsync(IHistoryStore store, Guid punterId)
     {
         var couponId = Guid.NewGuid();
-        await store.ProjectPlacedAsync(new CouponPlacedV1(couponId, punterId, BetType.Single, new Money(1_000, "ZAR"), 2m, new Money(2_000, "ZAR"),
-            [new CouponLegV1(Guid.NewGuid(), "f", "f-1x2", "home", 2m, 1)], DateTimeOffset.UtcNow), CancellationToken.None);
+        await store.ProjectPlacedAsync(new CouponPlacedV2(couponId, punterId, new Money(1_000, "ZAR"), new Money(2_000, "ZAR"),
+            [new CouponLegV2(Guid.NewGuid(), "f", "f-1x2", "home", 2m, 1, false)],
+            [new CouponBetV2(Guid.NewGuid(), "single", [1], 1, new Money(1_000, "ZAR"), new Money(1_000, "ZAR"), new Money(2_000, "ZAR"))], DateTimeOffset.UtcNow), CancellationToken.None);
         return couponId;
     }
+
+    private static CouponSettledV2 Settled(Guid couponId, Guid punterId, CouponOutcome outcome, long payout) =>
+        new(couponId, punterId, 1, outcome, new Money(1_000, "ZAR"), new Money(payout, "ZAR"), [], DateTimeOffset.UtcNow);
 
     /// <summary>The real host against a fresh database, read side only.</summary>
     private sealed class HistoryHost(string connectionString) : WebApplicationFactory<Program>

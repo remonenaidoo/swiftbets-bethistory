@@ -15,16 +15,6 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
 {
     private static readonly SqlResources Sql = SqlResources.For<PostgresHistoryStore>();
 
-    public async Task ProjectPlacedAsync(CouponPlacedV1 placed, CancellationToken cancellationToken)
-    {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(Sql.Get("History.Placed"), new
-        {
-            placed.CouponId, placed.PunterId, BetType = placed.BetType.ToString().ToLowerInvariant(), Stake = placed.Stake.MinorUnits, placed.Stake.Currency,
-            placed.TotalOdds, PotentialPayout = placed.PotentialPayout.MinorUnits, Legs = JsonSerializer.Serialize(placed.Legs, ContractJson.Options), placed.PlacedAt,
-        }, cancellationToken: cancellationToken));
-    }
-
     public async Task ProjectPlacedAsync(CouponPlacedV2 placed, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(placed);
@@ -39,12 +29,13 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
         }, cancellationToken: cancellationToken));
     }
 
-    public async Task ProjectSettledAsync(CouponSettledV1 settled, CancellationToken cancellationToken)
+    public async Task ProjectSettledAsync(CouponSettledV2 settled, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(settled);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(Sql.Get("History.Settled"), new
         {
-            settled.CouponId, settled.PunterId, Status = settled.Outcome.ToString().ToLowerInvariant(), settled.TargetPayout.Currency,
+            settled.CouponId, settled.PunterId, Status = JsonNamingPolicy.CamelCase.ConvertName(settled.Outcome.ToString()), settled.TargetPayout.Currency,
             Version = settled.SettlementVersion, Payout = settled.TargetPayout.MinorUnits, settled.SettledAt,
         }, cancellationToken: cancellationToken));
     }

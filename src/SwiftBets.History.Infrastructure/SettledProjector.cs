@@ -4,7 +4,7 @@ using SwiftBets.History.Application;
 
 namespace SwiftBets.History.Infrastructure;
 
-public sealed class SettledProjector(IHistoryStore store) : IEventHandler<CouponSettledV1>
+public sealed class SettledV2Projector(IHistoryStore store) : IEventHandler<CouponSettledV2>
 {
-    public Task HandleAsync(ConsumedEvent<CouponSettledV1> message, CancellationToken cancellationToken) => store.ProjectSettledAsync(message.Envelope.Payload, cancellationToken);
+    public Task HandleAsync(ConsumedEvent<CouponSettledV2> message, CancellationToken cancellationToken) => store.ProjectSettledAsync(message.Envelope.Payload, cancellationToken);
 }
