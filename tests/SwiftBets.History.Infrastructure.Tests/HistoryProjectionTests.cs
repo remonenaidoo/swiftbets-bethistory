@@ -98,6 +98,36 @@ public sealed class HistoryProjectionTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Boost_and_builder_components_are_kept_on_the_row()
+    {
+        var store = await StoreAsync();
+        var (placed, settled) = Coupon();
+        var builder = new Contracts.Offer.BetBuilderLegV1([new("f-1x2", "home", 2m), new("f-ou25", "over", 1.8m)], new Dictionary<string, decimal> { ["home.over"] = 1.1m }, 5m);
+        placed = placed with { Legs = [placed.Legs[0] with { MarketId = "bet-builder", SelectionId = "home+over", Builder = builder }], Bets = [placed.Bets[0] with { AccaBoostPercent = 10m }] };
+        settled = settled with { Bets = [settled.Bets[0] with { BoostBonus = new Money(100, "ZAR") }] };
+
+        await store.ProjectPlacedAsync(placed, CancellationToken.None);
+        await store.ProjectSettledAsync(settled, CancellationToken.None);
+
+        var row = (await store.GetAsync(placed.CouponId, CancellationToken.None)).ShouldNotBeNull();
+        (row.AccaBoostPercent, row.BoostBonus).ShouldBe((10m, (long?)100));
+        row.LegsJson.ShouldNotBeNull().ShouldContain("\"builder\": {\"components\"");
+    }
+
+    [Fact]
+    public async Task A_coupon_without_a_boost_has_no_bonus()
+    {
+        var store = await StoreAsync();
+        var (placed, settled) = Coupon();
+
+        await store.ProjectPlacedAsync(placed, CancellationToken.None);
+        await store.ProjectSettledAsync(settled, CancellationToken.None);
+
+        var row = (await store.GetAsync(placed.CouponId, CancellationToken.None)).ShouldNotBeNull();
+        (row.AccaBoostPercent, row.BoostBonus).ShouldBe((0m, (long?)null));
+    }
+
+    [Fact]
     public void An_account_mask_shows_only_the_last_four_characters()
     {
         AccountMask.For(Guid.Parse("0199aaaa-0000-7000-8000-00000000beef")).ShouldBe("****beef");

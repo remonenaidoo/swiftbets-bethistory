@@ -55,11 +55,12 @@ public static class HistoryEndpoints
     /// <summary>A history row with the legs as JSON rather than the stored string.</summary>
     private sealed record HistoryCoupon(
         Guid CouponId, Guid PunterId, string Status, string? BetType, long? Stake, string Currency, decimal? TotalOdds, long? PotentialPayout,
-        JsonElement? Legs, DateTime? PlacedAt, int SettlementVersion, long? Payout, long PaidToDate, DateTime UpdatedAt)
+        JsonElement? Legs, DateTime? PlacedAt, int SettlementVersion, long? Payout, long PaidToDate, DateTime UpdatedAt,
+        decimal AccaBoostPercent, long? BoostBonus)
     {
         public static HistoryCoupon From(CouponHistoryRow row) => new(
             row.CouponId, row.PunterId, row.Status, row.BetType, row.Stake, row.Currency, row.TotalOdds, row.PotentialPayout,
             row.LegsJson is { Length: > 0 } legs ? JsonDocument.Parse(legs).RootElement.Clone() : null,
-            row.PlacedAt, row.SettlementVersion, row.Payout, row.PaidToDate, row.UpdatedAt);
+            row.PlacedAt, row.SettlementVersion, row.Payout, row.PaidToDate, row.UpdatedAt, row.AccaBoostPercent, row.BoostBonus);
     }
 }
