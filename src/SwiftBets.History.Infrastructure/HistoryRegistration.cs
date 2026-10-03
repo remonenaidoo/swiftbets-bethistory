@@ -53,7 +53,12 @@ public static class HistoryRegistration
             }
 
             services.AddSingleton<IIntegritySources, HttpIntegritySources>();
+            services.AddSingleton<ISettlementTrail, HttpSettlementTrail>();
             services.AddHostedService<IntegrityWorker>();
+        }
+        else
+        {
+            services.AddSingleton<ISettlementTrail, NoSettlementTrail>();
         }
 
         return services;

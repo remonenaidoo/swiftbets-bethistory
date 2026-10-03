@@ -55,9 +55,14 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
         (await punter.GetAsync(new Uri($"/me/coupons/{theirCoupon}", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         (await punter.GetAsync(new Uri($"/admin/history/coupons/{theirCoupon}", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
-        using var operatorClient = host.Client(Guid.NewGuid(), "Operator");
+        using var withoutPermission = host.Client(Guid.NewGuid(), "Operator");
+        (await withoutPermission.GetAsync(new Uri($"/admin/history/coupons/{theirCoupon}", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var operatorClient = host.Client(Guid.NewGuid(), "Operator", "bets.read");
         var lookedUp = await operatorClient.GetFromJsonAsync<JsonElement>($"/admin/history/coupons/{theirCoupon}", TestContext.Current.CancellationToken);
         lookedUp.GetProperty("punterId").GetGuid().ShouldBe(theirs);
+        lookedUp.GetProperty("legs")[0].GetProperty("odds").GetDecimal().ShouldBe(2m);
+        lookedUp.GetProperty("resultsAvailable").GetBoolean().ShouldBeFalse();
         var byPunter = await operatorClient.GetFromJsonAsync<JsonElement>($"/admin/history/punters/{theirs}/coupons", TestContext.Current.CancellationToken);
         byPunter.GetArrayLength().ShouldBe(1);
     }
@@ -87,12 +92,48 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
         (await punterClient.GetAsync(new Uri("/admin/history/integrity", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
-    private static async Task<Guid> PlaceAsync(IHistoryStore store, Guid punterId)
+    [Fact]
+    public async Task Filters_narrow_the_list_and_the_cursor_pages_through_it_without_repeats()
+    {
+        await using var host = await HistoryHost.StartAsync(postgres);
+        var punter = Guid.NewGuid();
+        var store = host.Services.GetRequiredService<IHistoryStore>();
+        var start = DateTimeOffset.UtcNow.AddDays(-3);
+        var placed = new List<Guid>();
+        for (var i = 0; i < 3; i++)
+        {
+            placed.Add(await PlaceAsync(store, punter, start.AddHours(i)));
+        }
+
+        await store.ProjectSettledAsync(Settled(placed[0], punter, CouponOutcome.Won, 2_000), CancellationToken.None);
+        await PlaceAsync(store, punter, start.AddDays(-10));
+        using var client = host.Client(punter, "Punter");
+        var range = $"from={Uri.EscapeDataString(start.AddMinutes(-1).ToString("O"))}&to={Uri.EscapeDataString(start.AddDays(1).ToString("O"))}";
+
+        var first = await client.GetFromJsonAsync<JsonElement>($"/me/coupons?{range}&betType=single&limit=2", TestContext.Current.CancellationToken);
+        var second = await client.GetFromJsonAsync<JsonElement>($"/me/coupons?{range}&betType=single&limit=2&before={first[1].GetProperty("cursor").GetString()}", TestContext.Current.CancellationToken);
+        var won = await client.GetFromJsonAsync<JsonElement>($"/me/coupons?{range}&status=won", TestContext.Current.CancellationToken);
+
+        first.EnumerateArray().Concat(second.EnumerateArray()).Select(c => c.GetProperty("couponId").GetGuid()).ShouldBe([placed[2], placed[1], placed[0]]);
+        won.EnumerateArray().Select(c => c.GetProperty("couponId").GetGuid()).ShouldBe([placed[0]]);
+    }
+
+    [Fact]
+    public async Task An_unknown_status_or_a_forged_cursor_is_refused()
+    {
+        await using var host = await HistoryHost.StartAsync(postgres);
+        using var client = host.Client(Guid.NewGuid(), "Punter");
+
+        (await client.GetAsync(new Uri("/me/coupons?status=pending", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await client.GetAsync(new Uri("/me/coupons?before=abc", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    private static async Task<Guid> PlaceAsync(IHistoryStore store, Guid punterId, DateTimeOffset? placedAt = null)
     {
         var couponId = Guid.NewGuid();
         await store.ProjectPlacedAsync(new CouponPlacedV2(couponId, punterId, new Money(1_000, "ZAR"), new Money(2_000, "ZAR"),
             [new CouponLegV2(Guid.NewGuid(), "f", "f-1x2", "home", 2m, 1, false)],
-            [new CouponBetV2(Guid.NewGuid(), "single", [1], 1, new Money(1_000, "ZAR"), new Money(1_000, "ZAR"), new Money(2_000, "ZAR"))], DateTimeOffset.UtcNow), CancellationToken.None);
+            [new CouponBetV2(Guid.NewGuid(), "single", [1], 1, new Money(1_000, "ZAR"), new Money(1_000, "ZAR"), new Money(2_000, "ZAR"))], placedAt ?? DateTimeOffset.UtcNow), CancellationToken.None);
         return couponId;
     }
 
@@ -119,13 +160,13 @@ public sealed class HistoryApiTests(PostgresFixture postgres)
             return new HistoryHost(connectionString);
         }
 
-        public HttpClient Client(Guid subject, string role)
+        public HttpClient Client(Guid subject, string role, params string[] permissions)
         {
             var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
             {
                 Issuer = Issuer,
                 Audience = "swiftbets",
-                Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, subject.ToString()), new Claim("role", role)]),
+                Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Sub, subject.ToString()), new Claim("role", role), .. permissions.Select(p => new Claim("perm", p))]),
                 Expires = DateTime.UtcNow.AddMinutes(10),
                 SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.RsaSha256),
             });
