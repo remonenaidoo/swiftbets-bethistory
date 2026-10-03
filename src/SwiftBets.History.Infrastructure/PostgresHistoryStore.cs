@@ -26,6 +26,7 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
         {
             placed.CouponId, placed.PunterId, BetType = betType.ToString().ToLowerInvariant(), Stake = placed.TotalStake.MinorUnits, placed.TotalStake.Currency,
             TotalOdds = odds, PotentialPayout = placed.PotentialPayout.MinorUnits, Legs = JsonSerializer.Serialize(placed.Legs, ContractJson.Options), placed.PlacedAt,
+            AccaBoostPercent = placed.Bets.Count == 1 ? placed.Bets[0].AccaBoostPercent : 0m,
         }, cancellationToken: cancellationToken));
     }
 
@@ -37,6 +38,7 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
         {
             settled.CouponId, settled.PunterId, Status = JsonNamingPolicy.CamelCase.ConvertName(settled.Outcome.ToString()), settled.TargetPayout.Currency,
             Version = settled.SettlementVersion, Payout = settled.TargetPayout.MinorUnits, settled.SettledAt,
+            BoostBonus = settled.Bets.Any(b => b.BoostBonus is not null) ? settled.Bets.Sum(b => b.BoostBonus?.MinorUnits ?? 0) : (long?)null,
         }, cancellationToken: cancellationToken));
     }
 
