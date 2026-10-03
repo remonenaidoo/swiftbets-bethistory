@@ -19,6 +19,9 @@ public interface IHistoryStore
 
     Task<IReadOnlyList<CouponHistoryRow>> ListAsync(Guid punterId, int limit, CancellationToken cancellationToken);
 
+    /// <summary>One page of a punter's placed coupons matching <paramref name="filter"/>, newest first.</summary>
+    Task<IReadOnlyList<CouponHistoryRow>> SearchAsync(Guid punterId, CouponFilter filter, CancellationToken cancellationToken);
+
     /// <summary>Only coupons not yet settled, newest first.</summary>
     Task<IReadOnlyList<CouponHistoryRow>> ListOpenAsync(Guid punterId, int limit, CancellationToken cancellationToken);
 

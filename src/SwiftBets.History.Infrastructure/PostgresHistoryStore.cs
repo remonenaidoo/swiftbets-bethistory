@@ -55,6 +55,17 @@ public sealed class PostgresHistoryStore(NpgsqlDataSource dataSource) : IHistory
     public Task<IReadOnlyList<CouponHistoryRow>> ListOpenAsync(Guid punterId, int limit, CancellationToken cancellationToken) =>
         ListAsync(punterId, limit, true, cancellationToken);
 
+    public async Task<IReadOnlyList<CouponHistoryRow>> SearchAsync(Guid punterId, CouponFilter filter, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        return [.. await connection.QueryAsync<CouponHistoryRow>(new CommandDefinition(Sql.Get("History.Search"), new
+        {
+            PunterId = punterId, filter.Status, filter.BetType, From = filter.From?.UtcDateTime, To = filter.To?.UtcDateTime,
+            BeforeAt = filter.Before?.PlacedAt, BeforeId = filter.Before?.CouponId, Limit = Math.Clamp(filter.Limit, 1, 100),
+        }, cancellationToken: cancellationToken))];
+    }
+
     public async Task<IReadOnlyList<IntegrityFinding>> FindIntegrityProblemsAsync(int staleHours, int graceMinutes, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddSwiftBetsObservability("swiftbets-bethistory");
 builder.Services.AddSwiftBetsWeb();
 builder.Services.AddSwiftBetsJwtBearer(builder.Configuration);
+builder.Services.AddAuthorizationBuilder().AddPolicy(HistoryEndpoints.BetsRead, p => p.RequireClaim("perm", HistoryEndpoints.BetsRead));
 builder.Services.AddCouponHistory(builder.Configuration);
 
 var app = builder.Build();
